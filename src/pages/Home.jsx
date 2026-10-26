@@ -92,7 +92,7 @@ export default function Home() {
         <div className="back-cover">
           <Confetti />
           <h2 className="section-title">Ready when you are.</h2>
-          <p>Your attempts are saved in this browser, so you can track your grades over time.</p>
+          <p>Sign in and your attempts are saved to your account, so you can track your scores over time on any device.</p>
           <Link className="btn" to="/mock-quiz">
             Choose a quiz
           </Link>

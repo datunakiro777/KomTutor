@@ -1,4 +1,6 @@
 import { NavLink, Route, Routes, Link } from 'react-router-dom';
+import { Show, SignInButton, UserButton } from '@clerk/react';
+import { RequireAccount } from './components/Account.jsx';
 import Home from './pages/Home.jsx';
 import MockQuiz from './pages/MockQuiz.jsx';
 import TakeQuiz from './pages/TakeQuiz.jsx';
@@ -19,6 +21,18 @@ function Header() {
           </NavLink>
           <NavLink to="/mock-quiz">Mock quiz</NavLink>
           <NavLink to="/history">History</NavLink>
+          <Show when="signed-out">
+            <SignInButton mode="modal">
+              <button type="button" className="btn btn-small">
+                Sign in
+              </button>
+            </SignInButton>
+          </Show>
+          <Show when="signed-in">
+            <span className="user-button">
+              <UserButton />
+            </span>
+          </Show>
         </nav>
       </div>
     </header>
@@ -52,10 +66,10 @@ export default function App() {
       <main id="main">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/mock-quiz" element={<MockQuiz />} />
-          <Route path="/mock-quiz/:attemptId" element={<TakeQuiz />} />
-          <Route path="/results/:attemptId" element={<Results />} />
-          <Route path="/history" element={<History />} />
+          <Route path="/mock-quiz" element={<RequireAccount><MockQuiz /></RequireAccount>} />
+          <Route path="/mock-quiz/:attemptId" element={<RequireAccount><TakeQuiz /></RequireAccount>} />
+          <Route path="/results/:attemptId" element={<RequireAccount><Results /></RequireAccount>} />
+          <Route path="/history" element={<RequireAccount><History /></RequireAccount>} />
           <Route
             path="*"
             element={

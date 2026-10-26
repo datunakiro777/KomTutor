@@ -1,19 +1,21 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { deleteAllAttempts, formatDuration, listAttempts } from '../lib/attempts.js';
+import { deleteAllAttempts, formatDuration, listAttempts, SCORING_VERSION } from '../lib/attempts.js';
 import { quizLabel } from '../lib/data.js';
 
 const dateFormat = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
 
 const STATUS = {
   'in-progress': { label: 'In progress', action: 'Resume', to: (a) => `/mock-quiz/${a.id}` },
-  submitted: { label: 'Needs marking', action: 'Finish marking', to: (a) => `/results/${a.id}` },
-  graded: { label: 'Graded', action: 'Review', to: (a) => `/results/${a.id}` },
+  submitted: { label: 'Not scored yet', action: 'See score', to: (a) => `/results/${a.id}` },
+  graded: { label: 'Scored', action: 'Review', to: (a) => `/results/${a.id}` },
 };
 
 export default function History() {
   const [attempts, setAttempts] = useState(() => listAttempts());
-  const graded = attempts.filter((a) => a.status === 'graded');
+  // Attempts scored by an older version are scored again when their results page is opened.
+  const isScored = (a) => a.status === 'graded' && a.scoring === SCORING_VERSION;
+  const graded = attempts.filter(isScored);
   const recent = graded.slice(0, 12).reverse();
   const average = graded.length ? Math.round(graded.reduce((s, a) => s + a.percent, 0) / graded.length) : null;
   const best = graded.length ? Math.max(...graded.map((a) => a.percent)) : null;
@@ -42,7 +44,7 @@ export default function History() {
         <>
           <dl className="fact-strip">
             <div>
-              <dt>Quizzes graded</dt>
+              <dt>Quizzes scored</dt>
               <dd>{graded.length}</dd>
             </div>
             <div>
@@ -81,15 +83,15 @@ export default function History() {
 
           <ul className="attempt-list section">
             {attempts.map((a) => {
-              const status = STATUS[a.status];
+              const status = STATUS[isScored(a) ? 'graded' : a.status === 'in-progress' ? 'in-progress' : 'submitted'];
               return (
                 <li key={a.id} className="ticket attempt">
-                  <span className="ticket-choice">{a.status === 'graded' ? `${a.percent}%` : '—'}</span>
+                  <span className="ticket-choice">{isScored(a) ? `${a.percent}%` : '—'}</span>
                   <span className="ticket-details">
                     {quizLabel(a)}
                     <small>
                       {dateFormat.format(a.startedAt)} · {status.label}
-                      {a.status === 'graded' &&
+                      {isScored(a) &&
                         ` · ${a.correct}/${a.total} · ${formatDuration(a.submittedAt - a.startedAt)} of ${a.minutes} min`}
                     </small>
                   </span>

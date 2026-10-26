@@ -2,36 +2,43 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import PdfView from '../components/PdfView.jsx';
 import { archiveUrl, loadQuiz, OPTION_LETTERS, quizLabel } from '../lib/data.js';
-import { formatDuration, getAttempt, saveAttempt, submitAttempt } from '../lib/attempts.js';
+import { formatDuration, getAttempt, gradeAttempt, saveAttempt } from '../lib/attempts.js';
 
-function AnswerRow({ n, response, onChange }) {
+// Problems with a known answer letter get option bubbles; the rest take a typed answer.
+function AnswerRow({ problem, response, onChange }) {
+  const { n, check } = problem;
   const choice = response?.choice ?? '';
   return (
     <div className="answer-row">
-      <fieldset className="bubbles">
-        <legend className="visually-hidden">Answer for problem {n}</legend>
-        {OPTION_LETTERS.map((letter) => (
-          <label key={letter} className="bubble">
-            <input
-              type="radio"
-              name={`problem-${n}`}
-              value={letter}
-              checked={choice === letter}
-              onChange={() => onChange({ ...response, choice: letter })}
-            />
-            <span>{letter}</span>
-          </label>
-        ))}
-      </fieldset>
-      <label className="written">
-        <span className="visually-hidden">Written answer for problem {n}</span>
-        <input
-          type="text"
-          placeholder="Or write your answer"
-          value={response?.text ?? ''}
-          onChange={(e) => onChange({ ...response, text: e.target.value })}
-        />
-      </label>
+      {check === 'letter' ? (
+        <fieldset className="bubbles">
+          <legend className="visually-hidden">Answer for problem {n}</legend>
+          {OPTION_LETTERS.map((letter) => (
+            <label key={letter} className="bubble">
+              <input
+                type="radio"
+                name={`problem-${n}`}
+                value={letter}
+                checked={choice === letter}
+                onChange={() => onChange({ choice: letter })}
+              />
+              <span>{letter}</span>
+            </label>
+          ))}
+        </fieldset>
+      ) : (
+        <label className="written">
+          <span className="written-label">
+            {check === 'value' ? 'Type your answer' : 'Your answer (not scored automatically)'}
+          </span>
+          <input
+            type="text"
+            placeholder={check === 'value' ? 'e.g. 12 or -1/2' : 'Write your answer'}
+            value={response?.text ?? ''}
+            onChange={(e) => onChange({ text: e.target.value })}
+          />
+        </label>
+      )}
       {(choice || response?.text) && (
         <button type="button" className="link-button" onClick={() => onChange({})}>
           Clear
@@ -55,8 +62,8 @@ export default function TakeQuiz() {
   }, [attempt?.quizId]);
 
   const finish = useCallback(() => {
-    const submitted = submitAttempt(getAttempt(attemptId) ?? attempt, quiz.problems);
-    navigate(`/results/${submitted.id}`, { replace: true });
+    const graded = gradeAttempt(getAttempt(attemptId) ?? attempt, quiz.problems);
+    navigate(`/results/${graded.id}`, { replace: true });
   }, [attemptId, attempt, quiz, navigate]);
 
   useEffect(() => {
@@ -120,7 +127,7 @@ export default function TakeQuiz() {
           {!quiz && !error && <p>Loading problems…</p>}
           {quiz && (
             <p className="hint">
-              Choose the letter you would circle on the paper. For problems without options, type your answer.
+              Choose the letter you would circle on the paper. Where there are no letters to choose, type your answer.
               <a href={archiveUrl(quiz.fullTest)} target="_blank" rel="noreferrer">
                 {' '}
                 Open the full paper
@@ -134,7 +141,7 @@ export default function TakeQuiz() {
                 <h2 className="problem-number">Problem {p.n}</h2>
               </header>
               <PdfView url={archiveUrl(p.file)} label={`Problem ${p.n}`} />
-              <AnswerRow n={p.n} response={attempt.responses[p.n]} onChange={(r) => setResponse(p.n, r)} />
+              <AnswerRow problem={p} response={attempt.responses[p.n]} onChange={(r) => setResponse(p.n, r)} />
             </article>
           ))}
         </div>

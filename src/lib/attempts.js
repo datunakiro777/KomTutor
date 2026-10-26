@@ -1,20 +1,56 @@
-// Attempts live in localStorage so a refresh mid-quiz keeps the clock and answers.
-const STORAGE_KEY = 'komtutor.attempts.v1';
+import { writtenMatches } from './numbers.js';
 
-function readAll() {
+// Attempts are kept in localStorage per signed-in user, so a refresh mid-quiz keeps the clock and
+// answers, and every save is also sent to Supabase (see components/Account.jsx) so they follow the
+// user to other devices.
+const LEGACY_KEY = 'komtutor.attempts.v1';
+let storageKey = LEGACY_KEY;
+let remote = null;
+
+function read(key) {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? {};
+    return JSON.parse(localStorage.getItem(key)) ?? {};
   } catch {
     return {};
   }
 }
 
+const readAll = () => read(storageKey);
+
 function writeAll(attempts) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(attempts));
+    localStorage.setItem(storageKey, JSON.stringify(attempts));
   } catch {
     // Storage can be full or blocked; the current page still works from memory.
   }
+}
+
+// Switches the store to this user. `sink` receives every saved attempt and the clear-all request.
+// Attempts written before accounts existed (one shared key) are taken over by the first user to sign in.
+export function switchAttemptStore(userId, sink) {
+  storageKey = `${LEGACY_KEY}.${userId}`;
+  remote = sink;
+  const legacy = read(LEGACY_KEY);
+  if (Object.keys(legacy).length) {
+    writeAll({ ...legacy, ...readAll() });
+    try {
+      localStorage.removeItem(LEGACY_KEY);
+    } catch {
+      // Leaving the old copy behind is harmless.
+    }
+  }
+}
+
+// Combines attempts from Supabase with the local copy, keeping whichever was saved last.
+// Returns the local attempts that are newer than (or missing from) Supabase, to be uploaded.
+export function mergeRemoteAttempts(remoteAttempts) {
+  const all = readAll();
+  const remoteById = new Map(remoteAttempts.map((a) => [a.id, a]));
+  for (const a of remoteAttempts) {
+    if (!all[a.id] || (all[a.id].updatedAt ?? 0) < (a.updatedAt ?? 0)) all[a.id] = a;
+  }
+  writeAll(all);
+  return Object.values(all).filter((a) => (remoteById.get(a.id)?.updatedAt ?? -1) < (a.updatedAt ?? 0));
 }
 
 export function listAttempts() {
@@ -26,14 +62,17 @@ export function getAttempt(id) {
 }
 
 export function saveAttempt(attempt) {
+  const saved = { ...attempt, updatedAt: Date.now() };
   const all = readAll();
-  all[attempt.id] = attempt;
+  all[saved.id] = saved;
   writeAll(all);
-  return attempt;
+  remote?.save(saved);
+  return saved;
 }
 
 export function deleteAllAttempts() {
   writeAll({});
+  remote?.clear();
 }
 
 export function createAttempt(quiz, minutes) {
@@ -53,35 +92,49 @@ export function createAttempt(quiz, minutes) {
   });
 }
 
-const isBlank = (r) => !r || (!r.choice && !r.text?.trim());
-
-// true/false when the answer can be judged without the student, otherwise null.
-export function autoMark(problem, response) {
-  if (isBlank(response)) return false;
-  if (problem.key && response.choice) return response.choice === problem.key;
+// true/false for problems the site can score, null for the ones it can't (see build-data's `check`).
+export function checkResponse(problem, response) {
+  if (problem.check === 'letter') return Boolean(response?.choice) && response.choice === problem.key;
+  if (problem.check === 'value') {
+    const text = response?.text?.trim();
+    return Boolean(text) && writtenMatches(text, problem.answerNumbers);
+  }
   return null;
 }
 
-export function submitAttempt(attempt, problems) {
-  const marks = {};
-  for (const p of problems) marks[p.n] = autoMark(p, attempt.responses[p.n]);
-  return saveAttempt({
-    ...attempt,
-    status: 'submitted',
-    submittedAt: Math.min(Date.now(), attempt.endsAt),
-    total: problems.length,
-    marks,
-  });
+// Bumped when the way scores are worked out changes, so older saved attempts are scored again.
+export const SCORING_VERSION = 2;
+
+// The score is out of every problem. Problems the site can't check count only if the student
+// says they got them right (`claimed`).
+function withScore(attempt) {
+  const autoCorrect = Object.values(attempt.marks).filter((m) => m === true).length;
+  const claimedCorrect = Object.entries(attempt.claimed ?? {}).filter(
+    ([n, value]) => value && attempt.marks[n] === null,
+  ).length;
+  const correct = autoCorrect + claimedCorrect;
+  return { ...attempt, correct, percent: Math.round((correct / attempt.total) * 100) };
 }
 
-export function gradeAttempt(attempt) {
-  const correct = Object.values(attempt.marks).filter((m) => m === true).length;
-  return saveAttempt({
-    ...attempt,
-    status: 'graded',
-    correct,
-    percent: Math.round((correct / attempt.total) * 100),
-  });
+export function gradeAttempt(attempt, problems) {
+  const marks = {};
+  for (const p of problems) marks[p.n] = checkResponse(p, attempt.responses[p.n]);
+  return saveAttempt(
+    withScore({
+      ...attempt,
+      status: 'graded',
+      scoring: SCORING_VERSION,
+      submittedAt: attempt.submittedAt ?? Math.min(Date.now(), attempt.endsAt),
+      marks,
+      claimed: attempt.claimed ?? {},
+      total: problems.length,
+      scored: Object.values(marks).filter((m) => m !== null).length,
+    }),
+  );
+}
+
+export function claimCorrect(attempt, n, value) {
+  return saveAttempt(withScore({ ...attempt, claimed: { ...attempt.claimed, [n]: value } }));
 }
 
 export function formatDuration(ms) {

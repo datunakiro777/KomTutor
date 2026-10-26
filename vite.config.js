@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { quizDataDir } from './scripts/data-dir.mjs';
+import { quizDataDir } from './scripts/archive.mjs';
 
 // Serves the archive's PDFs at /archive/* without copying the 9 GB folder into the project.
 function archiveFiles() {

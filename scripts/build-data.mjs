@@ -2,28 +2,20 @@
 // Usage: QUIZ_DATA_DIR=/path/to/quizzes_by_year_grade node scripts/build-data.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import { quizDataDir } from './data-dir.mjs';
+import { quizDataDir, quizId, readArchiveJson } from './archive.mjs';
+import { answerNumbers, isNumericAnswer } from '../src/lib/numbers.js';
 
 const outDir = path.resolve('public/data');
-const readJson = (name) => JSON.parse(fs.readFileSync(path.join(quizDataDir, name), 'utf8'));
 
 if (!fs.existsSync(path.join(quizDataDir, 'problem_catalog.json'))) {
   console.error(`Quiz archive not found at ${quizDataDir}. Set QUIZ_DATA_DIR.`);
   process.exit(1);
 }
 
-const problems = readJson('problem_catalog.json');
-const explanations = readJson('explanation_catalog.json');
-
-const quizId = ({ year, grade, quiz }) =>
-  `${year}_g${String(grade).padStart(2, '0')}_${quiz.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-
-// Only answers that name exactly one Georgian option letter can be marked automatically.
-const keyPattern = /(?:option|choice)\s*\(?([ა-ჰ])\)?/g;
-const answerKey = (answer) => {
-  const letters = new Set([...answer.matchAll(keyPattern)].map((m) => m[1]));
-  return letters.size === 1 ? [...letters][0] : null;
-};
+const problems = readArchiveJson('problem_catalog.json');
+const explanations = readArchiveJson('explanation_catalog.json');
+// Option letters found by scripts/build-keys.mjs.
+const answerKeys = JSON.parse(fs.readFileSync('data/answer-keys.json', 'utf8'));
 
 const explanationByProblem = new Map(
   explanations.map((e) => [`${quizId(e)}#${e.problem}`, e]),
@@ -46,10 +38,15 @@ for (const p of problems) {
       problems: [],
     });
   }
+  const key = answerKeys[id]?.[p.problem]?.key ?? null;
+  const numbers = answerNumbers(e.answer);
   quizzes.get(id).problems.push({
     n: p.problem,
     file: p.file,
-    key: answerKey(e.answer),
+    // How the site checks this problem: by option letter, by the numbers in a written answer, or not at all.
+    check: key ? 'letter' : isNumericAnswer(e.answer) ? 'value' : null,
+    key,
+    answerNumbers: key ? undefined : numbers,
     title: e.title,
     question: e.question,
     idea: e.idea,
@@ -75,9 +72,12 @@ for (const q of [...quizzes.values()].sort((a, b) => a.id.localeCompare(b.id))) 
     quiz: q.quiz,
     subject: q.subject,
     problemCount: q.problems.length,
-    autoMarked: q.problems.filter((p) => p.key).length,
   });
 }
 fs.writeFileSync(path.join(outDir, 'quizzes.json'), JSON.stringify(index));
 
-console.log(`Wrote ${index.length} quizzes to ${path.relative(process.cwd(), outDir)}`);
+const checks = index.length && [...quizzes.values()].flatMap((q) => q.problems).reduce(
+  (c, p) => ({ ...c, [p.check ?? 'unchecked']: (c[p.check ?? 'unchecked'] ?? 0) + 1 }),
+  {},
+);
+console.log(`Wrote ${index.length} quizzes to ${path.relative(process.cwd(), outDir)}`, checks);
