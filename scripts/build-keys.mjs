@@ -27,6 +27,10 @@ const LONE_LETTER = /^\s*([ა-ვ])\s*$/;
 
 const isRed = (rgb) => rgb.length === 3 && rgb[0] > 150 && rgb[1] < 110 && rgb[2] < 110;
 
+// Papers typed in the old Georgian fonts (AcadNusx and similar) store ა ბ გ დ ე ვ as À Á Â Ã Ä Å.
+const LEGACY_LETTERS = /[À-Å]/g;
+const fromLegacyFont = (text) => text.replace(LEGACY_LETTERS, (c) => 'აბგდევ'[c.charCodeAt(0) - 0xc0]);
+
 // Text runs of a PDF in drawing order, with whether each was filled red.
 async function readRuns(file) {
   const doc = await getDocument({ url: file, verbosity: 0 }).promise;
@@ -40,7 +44,9 @@ async function readRuns(file) {
       if (fn === SET_RGB) red = isRed(Array.from(args.length === 3 ? args : (args[0] ?? [])));
       else if (OTHER_FILLS.has(fn)) red = false;
       if (fn !== SHOW_TEXT) continue;
-      const text = args[0].map((g) => g?.unicode ?? (typeof g === 'number' && g < -200 ? ' ' : '')).join('');
+      const text = fromLegacyFont(
+        args[0].map((g) => g?.unicode ?? (typeof g === 'number' && g < -200 ? ' ' : '')).join(''),
+      );
       if (text.trim()) runs.push({ text, red });
     }
   }

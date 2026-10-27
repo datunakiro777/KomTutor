@@ -13,11 +13,11 @@ Quizzes, results and history need a sign-in (Clerk). Each user's attempts are sa
 
 ## How scoring works
 
-Each problem is checked one of three ways (`check` in the quiz data):
+Problems in the 25-question papers are multiple choice, so the student always picks ა–ვ; other problems are multiple choice when their letter is known, and typed otherwise (`answerType` in the quiz data). Each problem is then checked one of three ways (`check`):
 
-- `letter`: the correct option letter is known, so the student picks ა–ვ. Letters come from `data/answer-keys.json`, built by `npm run keys` from, in order: the explanation naming the option, the red letter on the answered paper, or the single option on the unanswered paper whose value equals the explanation's answer. About 5,400 of 8,352 problems.
-- `value`: no letter, but the answer is a plain number, so the student types it and the numbers are compared (`src/lib/numbers.js`). About 1,250 problems.
-- not scored: the answer is a formula, set or statement. The student can still write an answer and compare it with the correct one on the results page; it doesn't count towards the score.
+- `letter`: the correct option letter is known. Letters come from `data/answer-keys.json`, built by `npm run keys` from, in order: the explanation naming the option, the red letter on the answered paper, or the single option on the unanswered paper whose value equals the explanation's answer. Papers typed in the old Georgian fonts (letters stored as À–Å) are read too. About 5,960 of 8,352 problems, including 5,134 of the 6,100 in 25-question papers.
+- `value`: a typed problem whose answer is a plain number, compared by value (`src/lib/numbers.js`). About 450 problems.
+- not checked automatically: the letter couldn't be read (scanned papers or broken text layers) or the answer is a formula, set or statement. The results page shows the correct answer and the student can tick it as right.
 
 Keys are read from the papers automatically, so a small share may be wrong. On problems that also have a letter in the explanation, the answered-paper keys agree 98% of the time.
 

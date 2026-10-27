@@ -23,6 +23,11 @@ const explanations = readArchiveJson('explanation_catalog.json');
 // Option letters found by scripts/build-keys.mjs.
 const answerKeys = JSON.parse(fs.readFileSync('data/answer-keys.json', 'utf8'));
 
+// The 25-question papers are all multiple choice (ა–ვ), even where the right letter isn't known.
+const MULTIPLE_CHOICE_SIZE = 25;
+const quizSizes = new Map();
+for (const e of explanations) quizSizes.set(quizId(e), (quizSizes.get(quizId(e)) ?? 0) + 1);
+
 const explanationByProblem = new Map(
   explanations.map((e) => [`${quizId(e)}#${e.problem}`, e]),
 );
@@ -44,15 +49,18 @@ for (const p of problems) {
     });
   }
   const key = answerKeys[id]?.[p.problem]?.key ?? null;
+  const answerType = key || quizSizes.get(id) === MULTIPLE_CHOICE_SIZE ? 'choice' : 'written';
   const numbers = answerNumbers(e.answer);
   quizzes.get(id).problems.push({
     n: p.problem,
     // Where the problem sits on the full paper (PDF points from the page's top-left corner).
     regions: p.source_regions.map(({ page, rectangle }) => ({ page, rect: rectangle })),
-    // How the site checks this problem: by option letter, by the numbers in a written answer, or not at all.
-    check: key ? 'letter' : isNumericAnswer(e.answer) ? 'value' : null,
+    // Whether the student picks a letter or types an answer, and how the site checks it: by option
+    // letter, by the numbers in a written answer, or not at all (the student marks it themselves).
+    answerType,
+    check: key ? 'letter' : answerType === 'written' && isNumericAnswer(e.answer) ? 'value' : null,
     key,
-    answerNumbers: key ? undefined : numbers,
+    answerNumbers: answerType === 'written' ? numbers : undefined,
     title: e.title,
     question: e.question,
     idea: e.idea,

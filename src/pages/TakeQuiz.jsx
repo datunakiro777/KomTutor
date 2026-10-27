@@ -4,13 +4,13 @@ import PdfView from '../components/PdfView.jsx';
 import { loadQuiz, OPTION_LETTERS, quizLabel } from '../lib/data.js';
 import { formatDuration, getAttempt, gradeAttempt, saveAttempt } from '../lib/attempts.js';
 
-// Problems with a known answer letter get option bubbles; the rest take a typed answer.
+// Multiple-choice problems get option bubbles; the rest take a typed answer.
 function AnswerRow({ problem, response, onChange }) {
-  const { n, check } = problem;
+  const { n, check, answerType } = problem;
   const choice = response?.choice ?? '';
   return (
     <div className="answer-row">
-      {check === 'letter' ? (
+      {answerType === 'choice' ? (
         <fieldset className="bubbles">
           <legend className="visually-hidden">Answer for problem {n}</legend>
           {OPTION_LETTERS.map((letter) => (

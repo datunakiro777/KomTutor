@@ -13,7 +13,12 @@ const GEORGIAN_COUNTS = {
   ექვსი: '6',
 };
 
-const clean = (s) => s.normalize('NFKC').replace(/[−–]/g, '-');
+// Papers often space out the sign, as in "y = 2x – 16.5"; keep it attached to the number.
+const clean = (s) =>
+  s
+    .normalize('NFKC')
+    .replace(/[−–]/g, '-')
+    .replace(/-\s+(?=\d)/g, '-');
 const canon = (list) => list.map((x) => String(Number(x)));
 const numbersIn = (s) => canon(s.match(NUMBER) ?? []);
 
