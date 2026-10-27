@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import MathText from '../components/MathText.jsx';
-import { archiveUrl, loadQuiz, quizLabel } from '../lib/data.js';
+import PdfView from '../components/PdfView.jsx';
+import { loadQuiz, quizLabel } from '../lib/data.js';
 import { claimCorrect, formatDuration, getAttempt, gradeAttempt, SCORING_VERSION } from '../lib/attempts.js';
 
 const yourAnswer = (r) =>
@@ -14,11 +15,13 @@ const STATUS = {
   claimed: { className: 'is-unscored', label: 'Marked correct by you', mark: '✓' },
 };
 
-function Explanation({ problem }) {
+function Explanation({ problem, paper }) {
   return (
     <div className="explanation-body">
       <h3>{problem.title}</h3>
-      <MathText as="p" className="explanation-question" text={problem.question} />
+      <div className="explanation-problem">
+        <PdfView url={paper} regions={problem.regions} label={`Problem ${problem.n}`} />
+      </div>
       {problem.idea && (
         <p>
           <strong>Idea: </strong>
@@ -51,19 +54,11 @@ function Explanation({ problem }) {
           <MathText text={problem.note} />
         </p>
       )}
-      <p className="explanation-links">
-        <a href={archiveUrl(problem.file)} target="_blank" rel="noreferrer">
-          Problem PDF
-        </a>
-        <a href={archiveUrl(problem.explanationFile)} target="_blank" rel="noreferrer">
-          Explanation PDF
-        </a>
-      </p>
     </div>
   );
 }
 
-function ProblemRow({ problem, response, mark, claimed, onClaim }) {
+function ProblemRow({ problem, paper, response, mark, claimed, onClaim }) {
   const status = mark === null && claimed ? STATUS.claimed : STATUS[mark];
   return (
     <li className={`result-row ${status.className}`}>
@@ -91,7 +86,7 @@ function ProblemRow({ problem, response, mark, claimed, onClaim }) {
           </span>
           <span className="result-toggle">Explanation</span>
         </summary>
-        <Explanation problem={problem} />
+        <Explanation problem={problem} paper={paper} />
       </details>
       {mark === null && (
         <label className="self-mark">
@@ -147,6 +142,7 @@ function Graded({ attempt, quiz, onChange }) {
             <ProblemRow
               key={p.n}
               problem={p}
+              paper={quiz.paper}
               response={attempt.responses[p.n]}
               mark={attempt.marks[p.n]}
               claimed={attempt.claimed?.[p.n]}

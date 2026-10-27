@@ -46,4 +46,8 @@ npm run dev
 
 `npm run keys` (about 20 seconds) rebuilds `data/answer-keys.json`, which is committed; run it again only if the archive changes.
 
-`npm run dev` first runs `npm run data`, which builds `public/data/` (the quiz index and one JSON file per quiz) from `problem_catalog.json` and `explanation_catalog.json`. Problem and explanation PDFs are served straight from the archive at `/archive/*` by a small Vite plugin, so the 9 GB folder is never copied. That also means `npm run build` output needs the archive mounted at `/archive/` by whatever serves it (`npm run preview` does this).
+`npm run dev` and `npm run build` first run `npm run data`, which builds `public/data/` (the quiz index and one JSON file per quiz) and copies each quiz's unanswered paper to `public/papers/<quiz id>.pdf` (about 170 MB). Problems are drawn from those papers using the archive's crop regions, so the 3 GB of extracted problem PDFs are never needed. Both folders are committed, so a machine without the archive (like Render) builds from them; `npm run data` just reuses them there.
+
+## Deploying to Render
+
+`render.yaml` describes a free static site: `npm ci && npm run build`, publishing `dist/`, with every route rewritten to `index.html`. It contains the publishable Clerk and Supabase keys, which are safe to share. In Render, choose New → Blueprint, pick this repository, and apply it. Then add the site's `onrender.com` address to Clerk's allowed origins if Clerk asks for it.

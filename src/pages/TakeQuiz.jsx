@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import PdfView from '../components/PdfView.jsx';
-import { archiveUrl, loadQuiz, OPTION_LETTERS, quizLabel } from '../lib/data.js';
+import { loadQuiz, OPTION_LETTERS, quizLabel } from '../lib/data.js';
 import { formatDuration, getAttempt, gradeAttempt, saveAttempt } from '../lib/attempts.js';
 
 // Problems with a known answer letter get option bubbles; the rest take a typed answer.
@@ -128,7 +128,7 @@ export default function TakeQuiz() {
           {quiz && (
             <p className="hint">
               Choose the letter you would circle on the paper. Where there are no letters to choose, type your answer.
-              <a href={archiveUrl(quiz.fullTest)} target="_blank" rel="noreferrer">
+              <a href={quiz.paper} target="_blank" rel="noreferrer">
                 {' '}
                 Open the full paper
               </a>
@@ -140,7 +140,7 @@ export default function TakeQuiz() {
               <header>
                 <h2 className="problem-number">Problem {p.n}</h2>
               </header>
-              <PdfView url={archiveUrl(p.file)} label={`Problem ${p.n}`} />
+              <PdfView url={quiz.paper} regions={p.regions} label={`Problem ${p.n}`} />
               <AnswerRow problem={p} response={attempt.responses[p.n]} onChange={(r) => setResponse(p.n, r)} />
             </article>
           ))}

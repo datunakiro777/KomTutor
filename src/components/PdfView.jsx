@@ -5,9 +5,33 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 const PDFJS_ASSETS = 'https://unpkg.com/pdfjs-dist@4.10.38';
+// The archive's extracted problems keep this much margin around each region.
+const PADDING = 8;
 
-// Renders every page of a PDF to canvases sized to the container, once it scrolls near view.
-export default function PdfView({ url, label }) {
+// Every problem of a quiz comes from the same paper, so it is downloaded and parsed once.
+const documents = new Map();
+function loadDocument(url) {
+  if (!documents.has(url)) {
+    const task = pdfjs.getDocument({
+      url,
+      cMapUrl: `${PDFJS_ASSETS}/cmaps/`,
+      cMapPacked: true,
+      standardFontDataUrl: `${PDFJS_ASSETS}/standard_fonts/`,
+    });
+    documents.set(
+      url,
+      task.promise.catch((error) => {
+        documents.delete(url);
+        throw error;
+      }),
+    );
+  }
+  return documents.get(url);
+}
+
+// Draws the given regions of a PDF (page + rectangle in points from the top-left), stacked, once the
+// view scrolls near the screen. The widest region fills the container; the rest keep the same scale.
+export default function PdfView({ url, regions, label }) {
   const hostRef = useRef(null);
   const [visible, setVisible] = useState(false);
   const [state, setState] = useState('idle');
@@ -26,40 +50,47 @@ export default function PdfView({ url, label }) {
     if (!visible) return;
     let cancelled = false;
     const host = hostRef.current;
-    const task = pdfjs.getDocument({
-      url,
-      cMapUrl: `${PDFJS_ASSETS}/cmaps/`,
-      cMapPacked: true,
-      standardFontDataUrl: `${PDFJS_ASSETS}/standard_fonts/`,
-    });
     setState('loading');
 
-    task.promise
-      .then(async (doc) => {
-        const width = host.clientWidth || 640;
-        const ratio = window.devicePixelRatio || 1;
-        const canvases = [];
-        for (let i = 1; i <= doc.numPages; i++) {
-          const page = await doc.getPage(i);
-          const base = page.getViewport({ scale: 1 });
-          const viewport = page.getViewport({ scale: (width / base.width) * ratio });
-          const canvas = document.createElement('canvas');
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-          if (cancelled) return;
-          canvases.push(canvas);
-        }
-        host.replaceChildren(...canvases);
-        setState('ready');
-      })
-      .catch(() => !cancelled && setState('error'));
+    (async () => {
+      const doc = await loadDocument(url);
+      const boxes = regions.map(({ page, rect: [x0, y0, x1, y1] }) => ({
+        page,
+        x: x0 - PADDING,
+        y: y0 - PADDING,
+        width: x1 - x0 + 2 * PADDING,
+        height: y1 - y0 + 2 * PADDING,
+      }));
+      const cssScale = (host.clientWidth || 640) / Math.max(...boxes.map((b) => b.width));
+      const scale = cssScale * (window.devicePixelRatio || 1);
+      const canvases = [];
+      for (const box of boxes) {
+        const page = await doc.getPage(box.page);
+        const viewport = page.getViewport({ scale, offsetX: -box.x * scale, offsetY: -box.y * scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.ceil(box.width * scale);
+        canvas.height = Math.ceil(box.height * scale);
+        canvas.style.width = `${box.width * cssScale}px`;
+        const context = canvas.getContext('2d');
+        await page.render({ canvasContext: context, viewport }).promise;
+        if (cancelled) return;
+        // Blank the margin, which would otherwise show the edges of neighbouring problems.
+        const inner = PADDING * scale;
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, canvas.width, inner);
+        context.fillRect(0, canvas.height - inner, canvas.width, inner);
+        context.fillRect(0, 0, inner, canvas.height);
+        context.fillRect(canvas.width - inner, 0, inner, canvas.height);
+        canvases.push(canvas);
+      }
+      host.replaceChildren(...canvases);
+      setState('ready');
+    })().catch(() => !cancelled && setState('error'));
 
     return () => {
       cancelled = true;
-      task.destroy();
     };
-  }, [visible, url]);
+  }, [visible, url, regions]);
 
   return (
     <div className="pdf-view" data-state={state}>
@@ -69,7 +100,7 @@ export default function PdfView({ url, label }) {
         <p className="pdf-status">
           This problem could not be shown here.{' '}
           <a href={url} target="_blank" rel="noreferrer">
-            Open the PDF
+            Open the paper
           </a>
           .
         </p>

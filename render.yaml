@@ -1,0 +1,27 @@
+# Render Blueprint: a static site built from this repo. The quiz data and papers are committed under
+# public/, so the build doesn't need the archive. Clerk and Supabase keys here are the publishable ones,
+# which are meant to be public; Vite builds them into the page.
+services:
+  - type: web
+    name: komtutor
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    pullRequestPreviewsEnabled: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /papers/*
+        name: Cache-Control
+        value: public, max-age=604800
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        value: pk_test_cG9zc2libGUtY2F0dGxlLTU0NTIuY2xlcmsuYWNjb3VudHMuZGV2JA
+      - key: VITE_SUPABASE_URL
+        value: https://vaudooynlducmmgycdcn.supabase.co
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_oF2_WcqPa-Fc24BM_HQhuA_JdlgAVV1

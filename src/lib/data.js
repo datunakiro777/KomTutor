@@ -16,8 +16,6 @@ function fetchJson(url) {
 export const loadQuizIndex = () => fetchJson('/data/quizzes.json');
 export const loadQuiz = (id) => fetchJson(`/data/quiz/${id}.json`);
 
-export const archiveUrl = (file) => `/archive/${encodeURI(file)}`;
-
 export const quizLabel = (q) => `${q.year} · Grade ${q.grade} · ${q.quiz}`;
 
 // Georgian answer letters in the order they appear on the papers.
